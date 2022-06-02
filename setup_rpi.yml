@@ -1,0 +1,153 @@
+#################################################
+# Reto's RPi setup playbook                     #
+# - run as:                                     #
+#   `ansible-playbook setup_rpi.yml -l NAME -kK`#
+# - localhost must have passlib for python      #
+#################################################
+---
+- hosts: rpi
+  # become: true
+  remote_user: pi
+  become: yes
+  become_method: sudo
+  vars_files:
+    - vars/lab-ubuntu-setup.yml
+  vars_prompt:
+    - name: new_password
+      prompt: "Enter the password you would like to use for the user pi"
+      confirm: yes
+
+# change password of pi user
+  tasks:
+    - name: backup shadow file
+      copy:
+        remote_src: yes
+        src: /etc/shadow
+        dest: /tmp/shadow
+
+    - name: generate hash pass
+      delegate_to: localhost
+      command:  python -c "from passlib.hash import md5_crypt; import getpass; print (md5_crypt.hash('{{new_password}}'))"
+      register: hash
+      become: no
+
+    - debug:
+        var: hash.stdout
+
+    - name: update password
+      user:
+        name: pi
+        password:  '{{hash.stdout}}'
+
+    - name: Install Prerequisites
+      apt: name=aptitude update_cache=yes state=latest force_apt_get=yes
+
+# Sudo Group Setup
+    - name: Make sure we have a 'wheel' group
+      group:
+        name: wheel
+        state: present
+
+    - name: Allow 'wheel' group to have passwordless sudo
+      lineinfile:
+        path: /etc/sudoers
+        state: present
+        regexp: '^%wheel'
+        line: '%wheel ALL=(ALL) NOPASSWD: ALL'
+        validate: '/usr/sbin/visudo -cf %s'
+
+# User + Key Setup
+    - name: Create a new regular user with sudo privileges
+      user:
+        name: "{{ create_user }}"
+        password: "*"
+        state: present
+        groups: wheel
+        append: true
+        create_home: true
+        shell: /bin/bash
+
+    - name: Set authorized key for remote user
+      authorized_key:
+        user: "{{ create_user }}"
+        state: present
+        key: "{{ copy_local_key }}"
+
+    - name: Disable password authentication for root
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        state: present
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin prohibit-password'
+
+# Install Packages
+    - name: Update apt
+      apt: update_cache=yes
+
+    - name: Install required system packages
+      apt: name={{ sys_packages }} state=latest
+
+# Additional SSH configurations to make it more secure
+    - name: Disable Challenge Response Authentication
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        state: present
+        regexp: 'ChallengeResponseAuthentication'
+        line: 'ChallengeResponseAuthentication no'
+
+    - name: Disable Password Authentication
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        state: present
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+
+    - name: Disable UsePAM
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        state: present
+        regexp: 'UsePAM yes'
+        line: 'UsePAM no'
+
+    - name: Deny user pi from signing in via ssh
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        state: present
+        regexp: 'DenyUsers pi'
+        line: DenyUsers pi
+
+
+# UFW Setup
+    - name: UFW - Allow SSH connections
+      ufw:
+        rule: allow
+        name: OpenSSH
+
+    - name: UFW - Deny all other incoming traffic by default
+      ufw:
+        state: enabled
+        policy: deny
+        direction: incoming
+
+# Resize partition
+    - name: Resize the SD card
+      command:  sudo raspi-config nonint do_expand_rootfs
+
+    - name: Stop and Start ssh
+      service:
+        name: ssh
+        state: restarted
+
+# Require sudo password always
+    - name: Require sudo password always
+      lineinfile:
+        path: /etc/sudoers.d/010_pi-nopasswd
+        state: present
+        regexp: 'pi ALL=(ALL) NOPASSWD: ALL'
+        line: 'pi ALL=(ALL) PASSWD: ALL'
+
+# print a message
+    - name: Reboot now
+      debug:
+        msg: 
+          - "RESTART MANUALLY NOW!"
