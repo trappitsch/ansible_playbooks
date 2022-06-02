@@ -1,0 +1,68 @@
+###########################################
+# Playbook to upgrade a mattermost server #
+###########################################
+---
+- hosts: mm_servers
+  become: no
+  become_method: sudo
+  vars_prompt:
+    - name: version
+      prompt: What mattermost version should I download?
+      private: no
+  vars_files:
+    - vars/mattermost-update-vars.yml
+
+  tasks:
+    - name: Clear extract folder
+      ansible.builtin.command:
+        chdir: "{{ tmp_path }}"
+        cmd: "rm -rf mattermost*tar.gz mattermost-upgrade"
+
+    - name: Download new version
+      get_url:
+        url: "https://releases.mattermost.com/{{ version }}/mattermost-{{ version }}-linux-amd64.tar.gz"
+        dest: "{{ tmp_path }}"
+
+    - name: Extract download to temp folder
+      ansible.builtin.unarchive:
+        src: "{{ tmp_path }}/mattermost-{{ version }}-linux-amd64.tar.gz"
+        dest: "{{ tmp_path }}"
+        extra_opts: 
+        - --transform
+        - 's,^[^/]\+,\0-upgrade,'
+        remote_src: yes
+
+    - name: Stop the server
+      ansible.builtin.service:
+        name: mattermost
+        state: stopped
+      become: yes
+
+    - name: Backup existing installation
+      ansible.builtin.copy:
+        src: "{{ install_path }}/mattermost"
+        dest: "{{ backup_path }}/mattermost-back-{{ansible_date_time.iso8601}}"
+        remote_src: yes
+      become: yes
+
+    - name: Prune installation files
+      ansible.builtin.shell:
+        chdir: "{{ install_path }}"
+        cmd: sudo find mattermost/ mattermost/client/ -mindepth 1 -maxdepth 1 \! \( -type d \( -path mattermost/client -o -path mattermost/client/plugins -o -path mattermost/config -o -path mattermost/logs -o -path mattermost/plugins -o -path mattermost/data \) -prune \) | sort | sudo xargs rm -r
+
+    - name: Copy new files into installation directory
+      ansible.builtin.shell: 
+        chdir: "{{ install_path }}"
+        cmd: sudo cp -an {{ tmp_path }}/mattermost-upgrade/. mattermost/
+
+    - name: Change ownership of files
+      ansible.builtin.command:
+        chdir: "{{ install_path }}"
+        cmd: chown -R mattermost:mattermost mattermost
+      become: yes
+
+    - name: Start the mattermost server
+      ansible.builtin.service:
+        name: mattermost
+        state: started
+      become: yes
