@@ -18,7 +18,9 @@ ansible-playbook PLAYBOOK-NAME.yml
 
 ## Host setup
 
-The hosts are set up in `/etc/ansible/hosts`. For lab computers and webservers, the configuration can look something like this:
+The hosts are set up in `/etc/ansible/hosts`.
+For lab computers and webservers,
+the configuration can look something like this:
 
 ```
 # ubuntu lab computers
