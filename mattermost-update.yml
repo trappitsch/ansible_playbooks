@@ -11,12 +11,19 @@
       private: no
   vars_files:
     - vars/mattermost-update-vars.yml
+  vars:
+    - backup_archive: "mattermost-backup-{{ansible_date_time.iso8601}}.tar.gz"
 
   tasks:
-    - name: Clear extract folder
-      ansible.builtin.command:
-        chdir: "{{ tmp_path }}"
-        cmd: "rm -rf mattermost*tar.gz mattermost-upgrade"
+    - name: Delete temporary folder
+      ansible.builtin.file:
+        path: "{{ tmp_path }}"
+        state: absent
+
+    - name: Create temporary folder
+      ansible.builtin.file:
+        path: "{{ tmp_path }}"
+        state: directory
 
     - name: Download new version
       get_url:
@@ -38,12 +45,18 @@
         state: stopped
       become: yes
 
-    - name: Backup existing installation
-      ansible.builtin.copy:
-        src: "{{ install_path }}/mattermost"
-        dest: "{{ backup_path }}/mattermost-back-{{ansible_date_time.iso8601}}"
-        remote_src: yes
+    - name: Backup existing installation as tar.gz
+      community.general.archive:
+        path: "{{ install_path }}/mattermost"
+        dest: "{{ backup_path }}/{{ backup_archive}}"
+        format: gz
       become: yes
+
+    - name: Copy backup to control node
+      ansible.builtin.fetch:
+        src: "{{ backup_path }}/{{ backup_archive }}"
+        dest: "{{ cntrl_backup_path }}"
+      when: do_cntrl_backup
 
     - name: Prune installation files
       ansible.builtin.shell:
@@ -56,9 +69,12 @@
         cmd: sudo cp -an {{ tmp_path }}/mattermost-upgrade/. mattermost/
 
     - name: Change ownership of files
-      ansible.builtin.command:
-        chdir: "{{ install_path }}"
-        cmd: chown -R mattermost:mattermost mattermost
+      ansible.builtin.file:
+        path: "{{ install_path }}/mattermost"
+        state: directory
+        recurse: yes
+        owner: mattermost
+        group: mattermost
       become: yes
 
     - name: Start the mattermost server
