@@ -7,3 +7,4 @@ backup_path: "/home/reto/backups"
 # variables on control node
 do_cntrl_backup: true  # activate a local backup to the control node
 cntrl_backup_path: "/home/reto/mm_backups"
+
