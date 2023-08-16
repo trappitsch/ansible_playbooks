@@ -44,6 +44,16 @@ The upgrade follows the [official Mattermost upgrade guide](https://docs.matterm
 This means that you must ensure that the simple upgrade procedure is adequate for the upgrade you want to perform.
 Technically, you can also downgrade the Mattermost server by specifying a lower version number.
 
+#### Setup
+
+- For host setup, see below
+- Clone this repository or make sure you have the files `mattermost-update.yml` and `vars/mattermost.yml` locally
+- Configure the variables according to your needs in `vars/mattermost.yml`. The top block is for the Mattermost server, the bottom block for the local / control machine.
+  - `tmp_path`: Temporary path on the server to download the new Mattermost version to
+  - `install_path`: Path where you `mattermost` folder is located
+  - `backup_path`: Path where you want to store the backup of the old Mattermost version on the server
+  - `do_cntrl_backup`: Boolean to decide if you want to copy the backup to the control machine or not
+  - `cntrl_backup_path`: Path where you want to store the backup of the old Mattermost version on the control machine
 
 
 ## Host setup
