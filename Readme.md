@@ -8,6 +8,7 @@ My ansible workflows are here to:
 The latter workflow is adopted from online workflows.
 Check out the vars folder for settings on which keys to copy!
 
+
 ## Playbooks
 
 Run the playbooks via:
@@ -15,6 +16,35 @@ Run the playbooks via:
 ```
 ansible-playbook PLAYBOOK-NAME.yml
 ```
+
+### Update existing computers
+
+The playbook `update_apt.yml` updates the apt cache and upgrades all packages.
+It is run via:
+
+```
+ansible-playbook update_apt.yml
+```
+
+### Update Mattermost
+
+The playbook `mattermost_update.yml` updates the version of the Mattermost server.
+It is run via:
+
+```
+ansible-playbook mattermost_update.yml
+```
+
+The playbook first asks which Mattermost version to download and install.
+Make sure that you give the three digit version number, e.g. `5.32.1`, that you want to upgrade to.
+The playbook then downloads the new version, stops the Mattermost server, and installs the new version.
+The upgrade follows the [official Mattermost upgrade guide](https://docs.mattermost.com/upgrade/upgrading-mattermost-server.html).
+
+**Warning**: Special instructions are not taken into consideration.
+This means that you must ensure that the simple upgrade procedure is adequate for the upgrade you want to perform.
+Technically, you can also downgrade the Mattermost server by specifying a lower version number.
+
+
 
 ## Host setup
 
@@ -35,6 +65,7 @@ mattermost-droplet-do ansible_host=159.223.133.198
 [all:vars]
 ansible_python_interpreter=/usr/bin/python3
 ```
+
 
 ## Help
 
