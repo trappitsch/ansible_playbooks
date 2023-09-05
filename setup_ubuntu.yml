@@ -2,7 +2,14 @@
 # DO Community Playbooks: Initial Server Setup
 #################################################
 ---
-- hosts: lab-ubuntu
+- hosts: lab-ubuntu, vms
+  vars_prompt:
+
+    - name: uname
+      prompt: What is your username?
+      private: false
+
+  remote_user: "{{ uname }}"
   become: true
   become_method: sudo
   vars_files:

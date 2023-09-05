@@ -1,4 +1,5 @@
 ---
 create_user: reto
 copy_local_key: "{{ lookup('file', lookup('env','HOME') + '/.ssh/ansible_key.pub') }}"
+# copy_local_key: "{{ lookup('file', lookup('env','HOME') + '/.ssh/yubikey_gpg.pub') }}"
 sys_packages: [ 'curl', 'vim', 'git', 'ufw', 'python3-pyqt5']
