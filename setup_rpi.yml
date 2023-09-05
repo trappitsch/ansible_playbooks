@@ -1,47 +1,44 @@
-#################################################
-# Reto's RPi setup playbook                     #
-# - run as:                                     #
-#   `ansible-playbook setup_rpi.yml -l NAME -kK`#
-# - localhost must have passlib for python      #
-#################################################
+##################################################
+# Reto's RPi setup playbook                      #
+# - run as:                                      #
+#   `ansible-playbook setup_rpi.yml -l NAME -kK` #
+# - localhost must have passlib for python       #
+##################################################
+
+# What it does:
+# - First asks for the connection and become password, then for the rest (options -kK)
+# - Creates a new user as defined in vars file with sudo privleges and ssh key
+# - Creates a new user `admin` with a password
+# - Disables password login for root
+# - Requires sudo password always
+# - Installs packages
+# - Deny the `pi` user (if exists) from ever login in via ssh
+# - Sets up UFW
+# - Resizes the SD card
+#
+# It is recommended that you upgrade the computer as well!
+
 ---
 - hosts: rpi
+  vars_prompt:
+
+    - name: uname
+      prompt: What is your username?
+      private: false
+
+    - name: admin_password 
+      prompt: "Enter the password you would like to use for the admin user"
+      private: true
+      confirm: yes
+      
   # become: true
-  remote_user: pi
-  become: yes
+  remote_user: "{{ uname }}"
+  become: true
   become_method: sudo
   vars_files:
     - vars/lab-ubuntu-setup.yml
-  vars_prompt:
-    - name: new_password
-      prompt: "Enter the password you would like to use for the user pi"
-      confirm: yes
 
-# change password of pi user
   tasks:
-    - name: backup shadow file
-      copy:
-        remote_src: yes
-        src: /etc/shadow
-        dest: /tmp/shadow
-
-    - name: generate hash pass
-      delegate_to: localhost
-      command:  python -c "from passlib.hash import md5_crypt; import getpass; print (md5_crypt.hash('{{new_password}}'))"
-      register: hash
-      become: no
-
-    - debug:
-        var: hash.stdout
-
-    - name: update password
-      user:
-        name: pi
-        password:  '{{hash.stdout}}'
-
-    - name: Install Prerequisites
-      apt: name=aptitude update_cache=yes state=latest force_apt_get=yes
-
 # Sudo Group Setup
     - name: Make sure we have a 'wheel' group
       group:
@@ -56,7 +53,7 @@
         line: '%wheel ALL=(ALL) NOPASSWD: ALL'
         validate: '/usr/sbin/visudo -cf %s'
 
-# User + Key Setup
+# User and ssh key setup for {{ create_user }}
     - name: Create a new regular user with sudo privileges
       user:
         name: "{{ create_user }}"
@@ -73,12 +70,24 @@
         state: present
         key: "{{ copy_local_key }}"
 
+# disable root from logging in
     - name: Disable password authentication for root
       lineinfile:
         path: /etc/ssh/sshd_config
         state: present
         regexp: '^#?PermitRootLogin'
         line: 'PermitRootLogin prohibit-password'
+
+# Admin user and password setup for IT
+    - name: Setup a user and password for IT admin
+      user:
+        name: admin
+        password: "{{ admin_password | password_hash('sha512') }}"
+        state: present
+        groups: wheel
+        append: true
+        create_home: true
+        shell: /bin/bash
 
 # Install Packages
     - name: Update apt
@@ -87,29 +96,9 @@
     - name: Install required system packages
       apt: name={{ sys_packages }} state=latest
 
+
 # Additional SSH configurations to make it more secure
-    - name: Disable Challenge Response Authentication
-      lineinfile:
-        path: /etc/ssh/sshd_config
-        state: present
-        regexp: 'ChallengeResponseAuthentication'
-        line: 'ChallengeResponseAuthentication no'
-
-    - name: Disable Password Authentication
-      lineinfile:
-        path: /etc/ssh/sshd_config
-        state: present
-        regexp: '^#?PasswordAuthentication'
-        line: 'PasswordAuthentication no'
-
-    - name: Disable UsePAM
-      lineinfile:
-        path: /etc/ssh/sshd_config
-        state: present
-        regexp: 'UsePAM yes'
-        line: 'UsePAM no'
-
-    - name: Deny user pi from signing in via ssh
+    - name: Deny user pi from signing in via ssh (legacy)
       lineinfile:
         path: /etc/ssh/sshd_config
         state: present
@@ -143,8 +132,8 @@
       lineinfile:
         path: /etc/sudoers.d/010_pi-nopasswd
         state: present
-        regexp: 'pi ALL=(ALL) NOPASSWD: ALL'
-        line: 'pi ALL=(ALL) PASSWD: ALL'
+        regexp: '{{ uname }} ALL=(ALL) NOPASSWD: ALL'
+        line: '{{ uname }} ALL=(ALL) PASSWD: ALL'
 
 # print a message
     - name: Reboot now
