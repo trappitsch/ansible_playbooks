@@ -52,12 +52,6 @@
         format: gz
       become: yes
 
-    - name: Copy backup to control node
-      ansible.builtin.fetch:
-        src: "{{ backup_path }}/{{ backup_archive }}"
-        dest: "{{ cntrl_backup_path }}"
-      when: do_cntrl_backup
-
     - name: Prune installation files
       ansible.builtin.shell:
         chdir: "{{ install_path }}"
@@ -82,3 +76,10 @@
         name: mattermost
         state: started
       become: yes
+
+    - name: Copy backup to control node
+      ansible.builtin.fetch:
+        src: "{{ backup_path }}/{{ backup_archive }}"
+        dest: "{{ cntrl_backup_path }}"
+      when: do_cntrl_backup
+
